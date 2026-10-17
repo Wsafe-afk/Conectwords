@@ -24,8 +24,8 @@ const ACCENTS: Record<string, string[]> = {
 };
 
 const keyClass =
-  'kbd-key relative flex-1 min-w-0 h-12 sm:h-11 flex items-center justify-center rounded-lg ' +
-  'border-2 border-cartoon-dark bg-white font-black text-lg text-cartoon-dark ' +
+  'kbd-key relative flex-1 min-w-0 h-full flex items-center justify-center rounded-xl ' +
+  'border-2 border-cartoon-dark bg-white font-black text-2xl sm:text-lg text-cartoon-dark ' +
   'active:translate-y-px active:bg-cartoon-yellow transition-colors';
 
 export const Keyboard: React.FC<KeyboardProps> = ({
@@ -84,7 +84,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
   );
 
   return (
-    <div className="relative w-full select-none">
+    <div className="relative w-full select-none h-[40vh] min-h-[210px] max-h-[340px] sm:h-auto sm:min-h-0 sm:max-h-none">
       {/* Popup de acentos (toque longo) */}
       {popup && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-30 flex gap-1 p-1.5 bg-white rounded-xl border-2 border-cartoon-dark shadow-cartoon">
@@ -97,7 +97,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                 onKey(accent);
                 setPopup(null);
               }}
-              className="w-10 h-12 flex items-center justify-center rounded-lg border-2 border-cartoon-dark bg-cartoon-cream font-black text-xl text-cartoon-dark active:bg-cartoon-yellow"
+              className="w-12 h-14 flex items-center justify-center rounded-xl border-2 border-cartoon-dark bg-cartoon-cream font-black text-2xl text-cartoon-dark active:bg-cartoon-yellow"
             >
               {accent}
             </button>
@@ -105,15 +105,19 @@ export const Keyboard: React.FC<KeyboardProps> = ({
         </div>
       )}
 
-      <div className="space-y-1.5">
+      <div className="flex h-full flex-col gap-1.5 sm:h-auto sm:gap-1">
         {/* Linha 1 */}
-        <div className="flex gap-1">{ROW_1.map(renderLetter)}</div>
+        <div className="flex min-h-0 flex-1 gap-1 sm:h-11 sm:flex-none">
+          {ROW_1.map(renderLetter)}
+        </div>
 
         {/* Linha 2 — escalonada (recuada nas laterais) */}
-        <div className="flex gap-1 px-[5%]">{ROW_2.map(renderLetter)}</div>
+        <div className="flex min-h-0 flex-1 gap-1 px-[5%] sm:h-11 sm:flex-none">
+          {ROW_2.map(renderLetter)}
+        </div>
 
         {/* Linha 3 — apagar + letras + mandar */}
-        <div className="flex gap-1">
+        <div className="flex min-h-0 flex-1 gap-1 sm:h-11 sm:flex-none">
           <button
             type="button"
             aria-label="Apagar"
@@ -123,7 +127,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
             }}
             className={`${keyClass} flex-[1.5] bg-cartoon-cream text-cartoon-dark`}
           >
-            <Delete className="w-6 h-6" />
+            <Delete className="w-7 h-7 sm:w-6 sm:h-6" />
           </button>
 
           {ROW_3.map(renderLetter)}
@@ -138,7 +142,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
             disabled={!canSubmit}
             className={`${keyClass} flex-[1.5] bg-cartoon-mint text-cartoon-dark disabled:opacity-40`}
           >
-            <Send className="w-6 h-6" />
+            <Send className="w-7 h-7 sm:w-6 sm:h-6" />
           </button>
         </div>
       </div>
