@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Delete, Send } from 'lucide-react';
+import { Delete } from 'lucide-react';
 
 interface KeyboardProps {
   onKey: (char: string) => void;
@@ -8,7 +8,7 @@ interface KeyboardProps {
   canSubmit: boolean;
 }
 
-// Layout QWERTY padrão (3 linhas escalonadas, como Wordle / teclado do celular)
+// Layout QWERTY padrão de teclado de celular (3 linhas escalonadas + linha de funções)
 const ROW_1 = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'];
 const ROW_2 = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'];
 const ROW_3 = ['Z', 'X', 'C', 'V', 'B', 'N', 'M'];
@@ -23,10 +23,18 @@ const ACCENTS: Record<string, string[]> = {
   C: ['Ç'],
 };
 
-const keyClass =
-  'kbd-key relative flex-1 min-w-0 h-full flex items-center justify-center rounded-xl ' +
-  'border-2 border-cartoon-dark bg-white font-black text-2xl sm:text-lg text-cartoon-dark ' +
-  'active:translate-y-px active:bg-cartoon-yellow transition-colors';
+// Altura de tecla proporcional a um teclado mobile real (não "estica" para preencher a tela)
+const KEY_H = 'h-[clamp(46px,6.5vh,54px)] sm:h-11';
+
+const baseKey =
+  'kbd-key relative flex select-none items-center justify-center rounded-[10px] ' +
+  'transition-transform duration-75 active:scale-95';
+
+const letterKey = `${baseKey} ${KEY_H} min-w-0 flex-1 bg-white text-[19px] font-semibold text-cartoon-dark shadow-[0_1px_0_0_rgba(15,23,42,0.35)] active:bg-gray-200 sm:text-[17px]`;
+
+const funcKey = `${baseKey} ${KEY_H} min-w-0 flex-1 bg-[#cbd2dc] text-cartoon-dark shadow-[0_1px_0_0_rgba(15,23,42,0.25)] active:bg-[#b6bec9]`;
+
+const submitKey = `${baseKey} ${KEY_H} w-full bg-cartoon-sky text-[15px] font-bold uppercase tracking-wide text-white shadow-[0_1px_0_0_rgba(15,23,42,0.25)] active:bg-cartoon-sky/80 disabled:opacity-40`;
 
 export const Keyboard: React.FC<KeyboardProps> = ({
   onKey,
@@ -77,17 +85,17 @@ export const Keyboard: React.FC<KeyboardProps> = ({
       onPointerCancel={cancelHold}
       onContextMenu={(e) => e.preventDefault()}
       onClick={() => handleClick(letter)}
-      className={keyClass}
+      className={letterKey}
     >
       {letter}
     </button>
   );
 
   return (
-    <div className="relative w-full select-none h-[40vh] min-h-[210px] max-h-[340px] sm:h-auto sm:min-h-0 sm:max-h-none">
+    <div className="relative w-full select-none">
       {/* Popup de acentos (toque longo) */}
       {popup && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-30 flex gap-1 p-1.5 bg-white rounded-xl border-2 border-cartoon-dark shadow-cartoon">
+        <div className="absolute bottom-full left-1/2 z-30 mb-2 flex -translate-x-1/2 gap-1 rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-black/10">
           {popup.options.map((accent) => (
             <button
               key={accent}
@@ -97,7 +105,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                 onKey(accent);
                 setPopup(null);
               }}
-              className="w-12 h-14 flex items-center justify-center rounded-xl border-2 border-cartoon-dark bg-cartoon-cream font-black text-2xl text-cartoon-dark active:bg-cartoon-yellow"
+              className="flex h-11 w-11 items-center justify-center rounded-[10px] bg-gray-100 text-[19px] font-semibold text-cartoon-dark active:bg-cartoon-sky active:text-white"
             >
               {accent}
             </button>
@@ -105,19 +113,27 @@ export const Keyboard: React.FC<KeyboardProps> = ({
         </div>
       )}
 
-      <div className="flex h-full flex-col gap-1.5 sm:h-auto sm:gap-1">
+      <div className="flex flex-col gap-1.5">
         {/* Linha 1 */}
-        <div className="flex min-h-0 flex-1 gap-1 sm:h-11 sm:flex-none">
-          {ROW_1.map(renderLetter)}
-        </div>
+        <div className="flex gap-1.5">{ROW_1.map(renderLetter)}</div>
 
         {/* Linha 2 — escalonada (recuada nas laterais) */}
-        <div className="flex min-h-0 flex-1 gap-1 px-[5%] sm:h-11 sm:flex-none">
-          {ROW_2.map(renderLetter)}
-        </div>
+        <div className="flex gap-1.5 px-[4.5%]">{ROW_2.map(renderLetter)}</div>
 
-        {/* Linha 3 — apagar + letras + mandar */}
-        <div className="flex min-h-0 flex-1 gap-1 sm:h-11 sm:flex-none">
+        {/* Linha 3 — Ç + letras + apagar (como shift/delete do teclado nativo) */}
+        <div className="flex gap-1.5 px-[9%]">
+          <button
+            type="button"
+            aria-label="Letra c cedilha"
+            onClick={() => {
+              setPopup(null);
+              onKey('Ç');
+            }}
+            className={`${funcKey} font-semibold`}
+          >
+            Ç
+          </button>
+          {ROW_3.map(renderLetter)}
           <button
             type="button"
             aria-label="Apagar"
@@ -125,26 +141,25 @@ export const Keyboard: React.FC<KeyboardProps> = ({
               setPopup(null);
               onBackspace();
             }}
-            className={`${keyClass} flex-[1.5] bg-cartoon-cream text-cartoon-dark`}
+            className={funcKey}
           >
-            <Delete className="w-7 h-7 sm:w-6 sm:h-6" />
-          </button>
-
-          {ROW_3.map(renderLetter)}
-
-          <button
-            type="button"
-            aria-label="Mandar palavra"
-            onClick={() => {
-              setPopup(null);
-              onEnter();
-            }}
-            disabled={!canSubmit}
-            className={`${keyClass} flex-[1.5] bg-cartoon-mint text-cartoon-dark disabled:opacity-40`}
-          >
-            <Send className="w-7 h-7 sm:w-6 sm:h-6" />
+            <Delete className="h-6 w-6" />
           </button>
         </div>
+
+        {/* Linha 4 — barra de enviar (como a barra inferior do teclado do celular) */}
+        <button
+          type="button"
+          aria-label="Mandar palavra"
+          onClick={() => {
+            setPopup(null);
+            onEnter();
+          }}
+          disabled={!canSubmit}
+          className={submitKey}
+        >
+          Mandar
+        </button>
       </div>
     </div>
   );
