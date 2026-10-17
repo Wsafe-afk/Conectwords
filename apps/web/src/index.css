@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --app-height: 100dvh;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@layer components {
+  /* Botão cartoon base com contorno escuro e sombra sólida deslocada */
+  .btn-cartoon {
+    @apply relative font-bold text-center select-none cursor-pointer rounded-2xl border-3 border-cartoon-dark shadow-cartoon transition-all duration-150 active:translate-x-1 active:translate-y-1 active:shadow-none disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .card-cartoon {
+    @apply bg-white rounded-3xl border-3 border-cartoon-dark shadow-cartoon;
+  }
+
+  .input-cartoon {
+    @apply w-full rounded-2xl border-3 border-cartoon-dark bg-white px-4 py-3 text-lg font-bold text-cartoon-dark shadow-cartoon outline-none focus:border-cartoon-sky focus:ring-4 focus:ring-cartoon-sky/20 transition-all placeholder:text-gray-400;
+  }
+}
+
+/* Shake de rejeição de palavra */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+/* Flutuação de reações */
+@keyframes floatUp {
+  0% {
+    transform: translateY(0) scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-400px) scale(1.3);
+    opacity: 0;
+  }
+}
+
+.animate-float-up {
+  animation: floatUp 2.4s ease-out forwards;
+}
+
+/* Pop de letras */
+@keyframes scaleUp {
+  0% { transform: scale(0.6); }
+  70% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.animate-scale-up {
+  animation: scaleUp 0.15s ease-out;
+}
+
+/* Redução de movimento acessível (spec RNF-007, CA-015) */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

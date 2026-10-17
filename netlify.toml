@@ -1,0 +1,9 @@
+[build]
+  base = "apps/web"
+  publish = "dist"
+  command = "pnpm --filter @conecta/shared build && pnpm --filter @conecta/web build"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

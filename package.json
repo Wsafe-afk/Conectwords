@@ -1,0 +1,18 @@
+{
+  "name": "conecta-palavras",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Jogo multiplayer em tempo real de encadeamento de palavras",
+  "scripts": {
+    "dev": "concurrently -n \"server,web\" -c \"blue,green\" \"pnpm dev:server\" \"pnpm dev:web\"",
+    "dev:server": "pnpm --filter @conecta/server dev",
+    "dev:web": "pnpm --filter @conecta/web dev",
+    "build": "pnpm --filter @conecta/shared build && pnpm --filter @conecta/server build && pnpm --filter @conecta/web build",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,0 +1,31 @@
+services:
+  # Servidor Backend (Node.js + Fastify + Socket.IO)
+  - type: web
+    name: conecta-server
+    runtime: node
+    plan: free
+    buildCommand: pnpm install && pnpm --filter @conecta/shared build && pnpm --filter @conecta/server build
+    startCommand: node apps/server/dist/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGINS
+        value: "*"
+
+  # Frontend Web (React + Vite + Tailwind)
+  - type: web
+    name: conecta-web
+    runtime: static
+    plan: free
+    buildCommand: pnpm install && pnpm --filter @conecta/shared build && pnpm --filter @conecta/web build
+    staticPublishPath: apps/web/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: conecta-server
+          property: host
