@@ -26,6 +26,7 @@ interface RoomState {
   floatingReactions: FloatingReaction[];
 
   // Ações
+  setNickname: (nickname: string) => void;
   setSession: (sessionToken: string, playerId: string, roomCode: string, nickname: string) => void;
   setRoom: (room: RoomView) => void;
   updateSettings: (settings: RoomSettings) => void;
@@ -53,6 +54,11 @@ export const useRoomStore = create<RoomState>((set) => ({
   lastError: null,
   lastReject: null,
   floatingReactions: [],
+
+  setNickname: (nickname) => {
+    localStorage.setItem('conecta_nickname', nickname);
+    set({ nickname });
+  },
 
   setSession: (sessionToken, playerId, roomCode, nickname) => {
     localStorage.setItem('conecta_session_token', sessionToken);

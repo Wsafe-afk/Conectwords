@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useRoomStore } from '../store/roomStore.js';
 import { initSocket, disconnectSocket } from '../lib/socket.js';
@@ -17,32 +17,36 @@ export const RoomPage: React.FC = () => {
     playerId,
     roomCode,
     room,
-    setRoom,
-    addPlayer,
-    removePlayer,
-    updatePlayerConnection,
-    setHost,
-    updateSettings,
-    setDraft,
-    addWordAccepted,
-    setReject,
-    addFloatingReaction,
-    syncClock,
   } = useRoomStore();
 
   const { playAccepted, playRejected, playLifeLost } = useFx();
   const [connecting, setConnecting] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Refs para as ações do store — sempre atualizadas, nunca causam re-run do effect
+  const storeRef = useRef(useRoomStore.getState());
+  useEffect(() => {
+    return useRoomStore.subscribe((state) => {
+      storeRef.current = state;
+    });
+  }, []);
+
+  const fxRef = useRef({ playAccepted, playRejected, playLifeLost });
+  useEffect(() => {
+    fxRef.current = { playAccepted, playRejected, playLifeLost };
+  }, [playAccepted, playRejected, playLifeLost]);
+
   useEffect(() => {
     const targetCode = code?.toUpperCase();
-    if (!sessionToken || roomCode !== targetCode || !playerId) {
+    const snap = useRoomStore.getState();
+
+    if (!snap.sessionToken || snap.roomCode !== targetCode || !snap.playerId) {
       // Se não tiver sessão para este código, redireciona para a tela de convite
       navigate(`/s/${targetCode}`);
       return;
     }
 
-    const socket = initSocket(sessionToken);
+    const socket = initSocket(snap.sessionToken);
 
     socket.on('connect', () => {
       setConnecting(false);
@@ -57,36 +61,38 @@ export const RoomPage: React.FC = () => {
     });
 
     socket.on('time:sync:ack', (data) => {
-      syncClock(data.clientTime, data.serverTime);
+      storeRef.current.syncClock(data.clientTime, data.serverTime);
     });
 
     socket.on('room:state', (roomView) => {
-      setRoom(roomView);
+      storeRef.current.setRoom(roomView);
     });
 
     socket.on('player:joined', (data) => {
-      addPlayer(data.player);
+      storeRef.current.addPlayer(data.player);
     });
 
     socket.on('player:left', (data) => {
-      removePlayer(data.playerId);
+      storeRef.current.removePlayer(data.playerId);
     });
 
     socket.on('player:connection', (data) => {
-      updatePlayerConnection(data.playerId, data.connected);
+      storeRef.current.updatePlayerConnection(data.playerId, data.connected);
     });
 
     socket.on('host:changed', (data) => {
-      setHost(data.hostId);
+      storeRef.current.setHost(data.hostId);
     });
 
     socket.on('settings:changed', (settings) => {
-      updateSettings(settings);
+      storeRef.current.updateSettings(settings);
     });
 
     socket.on('game:started', (data) => {
-      setRoom({
-        ...useRoomStore.getState().room!,
+      const current = useRoomStore.getState().room;
+      if (!current) return;
+      storeRef.current.setRoom({
+        ...current,
         phase: 'CHOOSING_LETTER',
         turnOrder: data.turnOrder,
         game: {
@@ -105,7 +111,7 @@ export const RoomPage: React.FC = () => {
     socket.on('letter:chosen', (data) => {
       const current = useRoomStore.getState().room;
       if (current && current.game) {
-        setRoom({
+        storeRef.current.setRoom({
           ...current,
           game: {
             ...current.game,
@@ -118,7 +124,7 @@ export const RoomPage: React.FC = () => {
     socket.on('turn:started', (data) => {
       const current = useRoomStore.getState().room;
       if (current && current.game) {
-        setRoom({
+        storeRef.current.setRoom({
           ...current,
           phase: 'PLAYING',
           game: {
@@ -133,27 +139,27 @@ export const RoomPage: React.FC = () => {
     });
 
     socket.on('draft:changed', (data) => {
-      setDraft(data.playerId, data.text, data.seq);
+      storeRef.current.setDraft(data.playerId, data.text, data.seq);
     });
 
     socket.on('word:accepted', (data) => {
-      playAccepted();
-      addWordAccepted(data.entry, data.nextPrefixes);
+      fxRef.current.playAccepted();
+      storeRef.current.addWordAccepted(data.entry, data.nextPrefixes);
     });
 
     socket.on('word:rejected', (data) => {
-      playRejected();
-      setReject({ reason: data.reason, detail: data.detail });
+      fxRef.current.playRejected();
+      storeRef.current.setReject({ reason: data.reason, detail: data.detail });
     });
 
     socket.on('turn:timeout', (data) => {
-      playLifeLost();
+      fxRef.current.playLifeLost();
       const current = useRoomStore.getState().room;
       if (current) {
         const players = current.players.map((p) =>
           p.id === data.playerId ? { ...p, lives: data.livesLeft } : p
         );
-        setRoom({ ...current, players });
+        storeRef.current.setRoom({ ...current, players });
       }
     });
 
@@ -163,14 +169,14 @@ export const RoomPage: React.FC = () => {
         const players = current.players.map((p) =>
           p.id === data.playerId ? { ...p, status: 'ELIMINATED' as const } : p
         );
-        setRoom({ ...current, players });
+        storeRef.current.setRoom({ ...current, players });
       }
     });
 
     socket.on('game:finished', (data) => {
       const current = useRoomStore.getState().room;
       if (current && current.game) {
-        setRoom({
+        storeRef.current.setRoom({
           ...current,
           phase: 'FINISHED',
           game: {
@@ -182,13 +188,14 @@ export const RoomPage: React.FC = () => {
     });
 
     socket.on('reaction:received', (data) => {
-      addFloatingReaction(data.playerId, data.emoji);
+      storeRef.current.addFloatingReaction(data.playerId, data.emoji);
     });
 
     return () => {
       disconnectSocket();
     };
-  }, [code, sessionToken, roomCode, playerId, navigate, setRoom, addPlayer, removePlayer, updatePlayerConnection, setHost, updateSettings, setDraft, addWordAccepted, setReject, addFloatingReaction, syncClock, playAccepted, playRejected, playLifeLost]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code]); // Apenas 'code' como dependência — o socket só deve ser criado/destruído quando o código da sala muda
 
   if (errorMsg) {
     return (

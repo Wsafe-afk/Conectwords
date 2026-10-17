@@ -59,8 +59,8 @@ async function startServer() {
     app.log.error(`Erro ao carregar dicionário: ${err.message}`);
   }
 
-  // Registra rotas HTTP REST
-  await registerRoutes(app);
+  // Registra rotas HTTP REST (passa o io para notificar a sala em tempo real)
+  await registerRoutes(app, io);
 
   // Configura gateway WebSocket
   setupWebSocket(io);

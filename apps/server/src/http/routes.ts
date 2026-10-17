@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import type { Server as SocketIOServer } from 'socket.io';
 import { nanoid } from 'nanoid';
 import {
   CreateRoomSchema,
@@ -17,7 +18,7 @@ import { roomStore } from '../services/room-store.js';
 import { sessionService } from '../services/session.js';
 import { dictionaryService } from '../services/dictionary.js';
 
-export async function registerRoutes(app: FastifyInstance) {
+export async function registerRoutes(app: FastifyInstance, io?: SocketIOServer) {
   // GET /health
   app.get('/health', async () => {
     return { status: 'ok' };
@@ -160,6 +161,12 @@ export async function registerRoutes(app: FastifyInstance) {
     await roomStore.save(room);
 
     const sessionToken = sessionService.createSession(playerId, room.code);
+
+    // Notifica via WebSocket todos os jogadores já conectados na sala que um novo jogador entrou
+    if (io) {
+      const roomChannel = `room:${room.code.toUpperCase()}`;
+      io.to(roomChannel).emit('player:joined', { player: { ...newPlayer, connected: false } });
+    }
 
     return reply.status(200).send({
       code: room.code,

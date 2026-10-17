@@ -13,7 +13,7 @@ interface HomeProps {
 
 export const Home: React.FC<HomeProps> = ({ onOpenJoinModal }) => {
   const navigate = useNavigate();
-  const { nickname, setSession, setError } = useRoomStore();
+  const { nickname, setSession, setNickname, setError } = useRoomStore();
   const [nickInput, setNickInput] = useState(nickname || '');
   const [isCreating, setIsCreating] = useState(false);
   const [muted, setMuted] = useState(sound.isMuted());
@@ -118,10 +118,14 @@ export const Home: React.FC<HomeProps> = ({ onOpenJoinModal }) => {
               size="lg"
               className="w-full flex items-center justify-center gap-2"
               onClick={() => {
-                if (nickInput.trim().length < 2) {
+                const cleanNick = nickInput.trim();
+                if (cleanNick.length < 2) {
                   alert('Por favor, digite seu apelido primeiro.');
                   return;
                 }
+                // Salva o apelido digitado antes de abrir o modal de entrada,
+                // para que o JoinModal use exatamente o nome informado aqui.
+                setNickname(cleanNick);
                 onOpenJoinModal();
               }}
             >
