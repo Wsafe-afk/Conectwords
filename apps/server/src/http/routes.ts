@@ -6,6 +6,7 @@ import {
   DEFAULT_ROOM_SETTINGS,
   generateRoomCode,
   JoinRoomSchema,
+  AVATAR_COUNT,
   type Player,
   RoomCodeSchema,
 } from '@conecta/shared';
@@ -69,7 +70,7 @@ export async function registerRoutes(app: FastifyInstance, io?: SocketIOServer) 
     const hostPlayer: Player = {
       id: playerId,
       nickname,
-      avatar: Math.floor(Math.random() * 8),
+      avatar: parseResult.data.avatar ?? Math.floor(Math.random() * AVATAR_COUNT),
       connected: false,
       disconnectedAt: null,
       lives: DEFAULT_ROOM_SETTINGS.lives,
@@ -148,7 +149,7 @@ export async function registerRoutes(app: FastifyInstance, io?: SocketIOServer) 
     const newPlayer: Player = {
       id: playerId,
       nickname: finalNickname,
-      avatar: Math.floor(Math.random() * 8),
+      avatar: bodyParse.data.avatar ?? Math.floor(Math.random() * AVATAR_COUNT),
       connected: false,
       disconnectedAt: null,
       lives: room.settings.lives,

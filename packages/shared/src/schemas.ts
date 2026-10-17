@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AVAILABLE_EMOJIS, ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH } from './constants.js';
+import { AVAILABLE_EMOJIS, AVATAR_COUNT, ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH } from './constants.js';
 
 export const NicknameSchema = z
   .string()
@@ -7,6 +7,12 @@ export const NicknameSchema = z
   .min(2, { message: 'O apelido deve ter pelo menos 2 caracteres.' })
   .max(16, { message: 'O apelido pode ter no máximo 16 caracteres.' })
   .regex(/^[^<>]+$/, { message: 'Caracteres especiais não permitidos no apelido.' });
+
+export const AvatarSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(AVATAR_COUNT - 1, { message: 'Avatar inválido.' });
 
 export const RoomCodeSchema = z
   .string()
@@ -26,10 +32,12 @@ export const UpdateSettingsSchema = RoomSettingsSchema.partial();
 
 export const CreateRoomSchema = z.object({
   nickname: NicknameSchema,
+  avatar: AvatarSchema.optional(),
 });
 
 export const JoinRoomSchema = z.object({
   nickname: NicknameSchema,
+  avatar: AvatarSchema.optional(),
 });
 
 export const ChooseLetterSchema = z.object({

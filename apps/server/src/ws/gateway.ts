@@ -26,6 +26,7 @@ import { dictionaryService } from '../services/dictionary.js';
 interface SocketData {
   playerId: string;
   roomCode: string;
+  leaving?: boolean;
 }
 
 // Tempo de graça para o jogador reconectar antes de ser removido da sala (RF-010)
@@ -354,12 +355,18 @@ export function setupWebSocket(io: Server) {
     });
 
     // Sair voluntariamente da sala
-    socket.on('room:leave', async () => {
-      await handlePlayerDisconnectOrLeave(io, roomCode, playerId, true);
+    socket.on('room:leave', async (_, ack) => {
+      const data = socket.data as SocketData;
+      if (!data.leaving) {
+        data.leaving = true; // impede que o 'disconnect' seguinte processe a saída de novo
+        await handlePlayerDisconnectOrLeave(io, roomCode, playerId, true);
+      }
+      if (typeof ack === 'function') ack({ ok: true });
     });
 
     // Desconexão do socket
     socket.on('disconnect', async () => {
+      if ((socket.data as SocketData).leaving) return; // saída voluntária já tratada acima
       await handlePlayerDisconnectOrLeave(io, roomCode, playerId, false);
     });
   });
@@ -506,63 +513,62 @@ async function handlePlayerDisconnectOrLeave(
   const room = await roomStore.get(roomCode);
   if (!room) return;
 
+  const player = room.players.find((p) => p.id === playerId);
+  if (!player) return;
+
   const roomChannel = `room:${roomCode.toUpperCase()}`;
 
-  if (voluntaryLeave && room.phase === 'LOBBY') {
-    // No lobby, saída voluntária remove de vez
-    room.players = room.players.filter((p) => p.id !== playerId);
-    if (room.players.length === 0) {
-      await roomStore.delete(roomCode);
-      return;
-    }
-    if (room.hostId === playerId) {
-      const newHost = reassignHostIfHostLeft(room);
-      if (newHost) io.to(roomChannel).emit('host:changed', { hostId: newHost });
-    }
-    room.version++;
-    await roomStore.save(room);
-    io.to(roomChannel).emit('player:left', { playerId, reason: 'left' });
-  } else {
-    // Queda de rede ou durante partida: marca desconectado com período de graça
-    const player = room.players.find((p) => p.id === playerId);
-    if (player) {
-      player.connected = false;
-      player.disconnectedAt = Date.now();
+  // Saída voluntária (lobby ou partida): remove na hora, sem período de graça
+  if (voluntaryLeave) {
+    clearGraceTimer(roomCode, playerId);
+    player.connected = false;
+    await finalizeDisconnect(io, roomCode, playerId, 'left');
+    return;
+  }
+
+  // Queda de rede ou durante partida: marca desconectado com período de graça
+  player.connected = false;
+  player.disconnectedAt = Date.now();
+  room.version++;
+  await roomStore.save(room);
+  io.to(roomChannel).emit('player:connection', { playerId, connected: false });
+
+  // Se o host caiu no lobby, passa a liderança ao jogador conectado mais antigo
+  // imediatamente, para a sala não ficar presa esperando ele voltar (CA-013).
+  if (room.phase === 'LOBBY' && room.hostId === playerId) {
+    const oldestConnected = room.players
+      .filter((p) => p.id !== playerId && p.connected)
+      .sort((a, b) => a.joinedAt - b.joinedAt)[0];
+    if (oldestConnected) {
+      room.hostId = oldestConnected.id;
       room.version++;
       await roomStore.save(room);
-      io.to(roomChannel).emit('player:connection', { playerId, connected: false });
-
-      // Se o host caiu no lobby, passa a liderança ao jogador conectado mais antigo
-      // imediatamente, para a sala não ficar presa esperando ele voltar (CA-013).
-      if (room.phase === 'LOBBY' && room.hostId === playerId && !voluntaryLeave) {
-        const oldestConnected = room.players
-          .filter((p) => p.id !== playerId && p.connected)
-          .sort((a, b) => a.joinedAt - b.joinedAt)[0];
-        if (oldestConnected) {
-          room.hostId = oldestConnected.id;
-          room.version++;
-          await roomStore.save(room);
-          io.to(roomChannel).emit('host:changed', { hostId: oldestConnected.id });
-        }
-      }
-
-      // Agenda a remoção definitiva caso o jogador não reconecte a tempo (RF-007, RF-010)
-      scheduleGraceTimer(io, roomCode, playerId);
+      io.to(roomChannel).emit('host:changed', { hostId: oldestConnected.id });
     }
   }
+
+  // Agenda a remoção definitiva caso o jogador não reconecte a tempo (RF-007, RF-010)
+  scheduleGraceTimer(io, roomCode, playerId);
 }
 
 /**
- * Remove de fato um jogador que não reconectou dentro do período de graça.
- * Reatribui host, ajusta o jogo em andamento e destrói salas vazias.
+ * Remove de fato um jogador (por saída voluntária ou por não ter reconectado
+ * dentro do período de graça). Reatribui host, ajusta o jogo em andamento e
+ * destrói salas vazias.
  */
-async function finalizeDisconnect(io: Server, roomCode: string, playerId: string): Promise<void> {
+async function finalizeDisconnect(
+  io: Server,
+  roomCode: string,
+  playerId: string,
+  reason: 'timeout' | 'left' = 'timeout'
+): Promise<void> {
   const room = await roomStore.get(roomCode);
   if (!room) return;
 
   const player = room.players.find((p) => p.id === playerId);
-  // Se reconectou a tempo ou já saiu, não faz nada
-  if (!player || player.connected) return;
+  // Se reconectou a tempo (timeout) ou já foi removido, não faz nada.
+  // Na saída voluntária a remoção é sempre aplicada.
+  if (!player || (reason === 'timeout' && player.connected)) return;
 
   const roomChannel = `room:${roomCode.toUpperCase()}`;
 
@@ -582,7 +588,7 @@ async function finalizeDisconnect(io: Server, roomCode: string, playerId: string
     if (newHost) io.to(roomChannel).emit('host:changed', { hostId: newHost });
   }
 
-  io.to(roomChannel).emit('player:left', { playerId, reason: 'timeout' });
+  io.to(roomChannel).emit('player:left', { playerId, reason });
 
   // Ajusta uma partida em andamento
   if (room.game && (room.phase === 'PLAYING' || room.phase === 'CHOOSING_LETTER')) {
@@ -603,6 +609,14 @@ async function finalizeDisconnect(io: Server, roomCode: string, playerId: string
           ),
         },
       });
+      return;
+    }
+
+    // Se quem escolhia a letra saiu, sorteia a letra agora em vez de esperar o timer
+    if (room.phase === 'CHOOSING_LETTER' && room.game.chooserId === playerId) {
+      await roomStore.save(room); // persiste a remoção antes de recarregar a sala
+      timerService.clearTimer(roomCode);
+      await executeLetterChoice(io, roomCode, playerId, null, true);
       return;
     }
 

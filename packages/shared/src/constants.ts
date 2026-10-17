@@ -15,6 +15,10 @@ export const DEFAULT_LETTER_CHOOSE_SECONDS = 15;
 
 export const AVAILABLE_EMOJIS = ['🔥', '😂', '👏', '😱', '🧠', '❤️', '⏱️', '🤯'] as const;
 
+// Avatares dos jogadores (índice estável usado no Player.avatar)
+export const AVATAR_EMOJIS = ['🐱', '🐶', '🦊', '🐻', '🐼', '🦁', '🐸', '🐵'] as const;
+export const AVATAR_COUNT = AVATAR_EMOJIS.length;
+
 export const REJECT_REASON_MESSAGES: Record<RejectReason, string> = {
   NOT_YOUR_TURN: 'Não é a sua vez de jogar.',
   INVALID_CHARS: 'Apenas letras são permitidas (sem números, hífens ou espaços).',
