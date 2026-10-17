@@ -1,10 +1,17 @@
 import 'dotenv/config';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import fastifyStatic from '@fastify/static';
 import { Server as SocketIOServer } from 'socket.io';
 import { dictionaryService } from './services/dictionary.js';
 import { registerRoutes } from './http/routes.js';
 import { setupWebSocket } from './ws/gateway.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:3000').split(',');
@@ -57,6 +64,34 @@ async function startServer() {
 
   // Configura gateway WebSocket
   setupWebSocket(io);
+
+  // Se o frontend compilado existir, serve os arquivos estáticos (All-in-one deploy no Render)
+  const webDistCandidates = [
+    path.resolve(__dirname, '../../web/dist'),
+    path.resolve(__dirname, '../../../apps/web/dist'),
+    path.resolve(process.cwd(), 'apps/web/dist'),
+    path.resolve(process.cwd(), 'dist'),
+  ];
+  const webDistPath = webDistCandidates.find((p) => fs.existsSync(p));
+
+  if (webDistPath) {
+    app.log.info(`Servindo arquivos estáticos do frontend de: ${webDistPath}`);
+    await app.register(fastifyStatic, {
+      root: webDistPath,
+      prefix: '/',
+      wildcard: false,
+    });
+
+    // Fallback SPA para rotas do React (como /room/:code e /s/:code)
+    app.setNotFoundHandler((req, reply) => {
+      const url = req.raw.url || '';
+      if (url.startsWith('/api') || url.startsWith('/socket.io') || url === '/health' || url === '/ready') {
+        reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Rota não encontrada.' } });
+        return;
+      }
+      reply.sendFile('index.html');
+    });
+  }
 
   try {
     await app.listen({ port: PORT, host: '0.0.0.0' });

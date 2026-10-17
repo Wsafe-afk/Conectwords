@@ -11,6 +11,7 @@
   "dependencies": {
     "@conecta/shared": "workspace:*",
     "@fastify/cors": "^10.0.2",
+    "@fastify/static": "^10.1.6",
     "dotenv": "^16.4.7",
     "fastify": "^5.2.1",
     "ioredis": "^5.6.0",
