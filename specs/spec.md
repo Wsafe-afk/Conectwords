@@ -67,8 +67,8 @@ Palavra inválida **não** custa vida: o jogador vê o motivo e pode tentar de n
 - **RF-020** Estouro de tempo: servidor retira 1 vida, emite o evento e passa a vez.
 
 ### Dicionário
-- **RF-030** O servidor carrega uma lista de palavras pt-BR no boot (arquivo versionado) e valida em memória em O(1).
-- **RF-031** A lista é normalizada na carga; palavras com formas acentuadas diferentes que colidem contam como a mesma.
+- **RF-030** O servidor carrega uma ou mais listas de palavras pt-BR versionadas no boot e valida em memória em O(1).
+- **RF-031** As listas são normalizadas e unidas na carga; palavras com formas acentuadas diferentes que colidem contam como a mesma.
 - **RF-032** Fonte da lista e licença documentadas em `docs/dictionary.md`.
 
 ## 4. Requisitos não funcionais
