@@ -146,6 +146,56 @@ export class SoundFX {
     } catch {}
   }
 
+  // Sua vez! Dois toques curtos e agradáveis
+  public yourTurn() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    try {
+      const notes = [659.25, 880]; // E5, A5
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.1);
+
+        gain.gain.setValueAtTime(0.22, ctx.currentTime + idx * 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + idx * 0.1 + 0.16);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(ctx.currentTime + idx * 0.1);
+        osc.stop(ctx.currentTime + idx * 0.1 + 0.16);
+      });
+    } catch {}
+  }
+
+  // Fim de jogo sem vitória: três notas descendentes
+  public lose() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    try {
+      const notes = [392, 349.23, 311.13]; // G4, F4, Eb4
+      let t = ctx.currentTime;
+      notes.forEach((freq) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t);
+
+        gain.gain.setValueAtTime(0.2, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.25);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(t);
+        osc.stop(t + 0.25);
+        t += 0.22;
+      });
+    } catch {}
+  }
+
   // Vitória! Fanfarra
   public win() {
     const ctx = this.getContext();

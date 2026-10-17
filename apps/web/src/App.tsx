@@ -4,12 +4,14 @@ import { Home } from './pages/Home.js';
 import { JoinModal } from './pages/JoinModal.js';
 import { RoomPage } from './pages/RoomPage.js';
 import { InvitePage } from './pages/InvitePage.js';
+import { Toasts } from './components/Toasts.js';
 
 export const App: React.FC = () => {
   const [isJoinOpen, setIsJoinOpen] = useState(false);
 
   return (
     <BrowserRouter>
+      <Toasts />
       <Routes>
         <Route
           path="/"

@@ -4,6 +4,7 @@ import { Card } from '../components/Card.js';
 import { Button } from '../components/Button.js';
 import { Avatar } from '../components/Avatar.js';
 import { getSocket } from '../lib/socket.js';
+import { toast } from '../lib/toast.js';
 import { Copy, Share2, Play, UserX, Settings2, Check } from 'lucide-react';
 import { sound } from '../fx/sound.js';
 
@@ -16,6 +17,7 @@ export const Lobby: React.FC<LobbyProps> = ({ room, myPlayerId }) => {
   const isHost = room.hostId === myPlayerId;
   const [copied, setCopied] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
+  const [kickConfirmId, setKickConfirmId] = useState<string | null>(null);
   const socket = getSocket();
 
   const handleCopyCode = async () => {
@@ -47,8 +49,17 @@ export const Lobby: React.FC<LobbyProps> = ({ room, myPlayerId }) => {
     }
   };
 
+  // Confirmação em dois toques (evita expulsar por engano no celular)
   const handleKick = (playerId: string) => {
     if (!isHost || !socket) return;
+    if (kickConfirmId !== playerId) {
+      setKickConfirmId(playerId);
+      setTimeout(() => {
+        setKickConfirmId((current) => (current === playerId ? null : current));
+      }, 3000);
+      return;
+    }
+    setKickConfirmId(null);
     socket.emit('player:kick', { playerId });
   };
 
@@ -63,7 +74,7 @@ export const Lobby: React.FC<LobbyProps> = ({ room, myPlayerId }) => {
     socket.emit('game:start', {}, (res: any) => {
       setIsStarting(false);
       if (!res?.ok && res?.error) {
-        alert(res.error);
+        toast.error(res.error);
       }
     });
   };
@@ -102,6 +113,12 @@ export const Lobby: React.FC<LobbyProps> = ({ room, myPlayerId }) => {
             <span>Compartilhar</span>
           </Button>
         </div>
+
+        {room.players.length < 2 && (
+          <p className="mt-3 text-xs font-bold text-cartoon-dark/70 bg-white/60 rounded-xl border-2 border-dashed border-cartoon-dark/30 py-2 px-3">
+            💡 Toque em "Compartilhar" para chamar seus amigos — o jogo começa com 2+ jogadores!
+          </p>
+        )}
       </Card>
 
       {/* Lista de Jogadores Conectados */}
@@ -130,11 +147,15 @@ export const Lobby: React.FC<LobbyProps> = ({ room, myPlayerId }) => {
                 <button
                   type="button"
                   onClick={() => handleKick(p.id)}
-                  className="mt-1 text-[10px] font-black text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
+                  className={`mt-1 text-[10px] font-black flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg border transition-colors cursor-pointer ${
+                    kickConfirmId === p.id
+                      ? 'bg-red-500 text-white border-cartoon-dark animate-pulse'
+                      : 'text-red-500 border-transparent hover:text-red-700 hover:border-red-200'
+                  }`}
                   title="Expulsar jogador"
                 >
                   <UserX className="w-3 h-3" />
-                  <span>Expulsar</span>
+                  <span>{kickConfirmId === p.id ? 'Confirmar?' : 'Expulsar'}</span>
                 </button>
               )}
             </div>

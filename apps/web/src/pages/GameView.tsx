@@ -10,7 +10,9 @@ import { ReactionsBar } from '../components/ReactionsBar.js';
 import { Keyboard } from '../components/Keyboard.js';
 import { getSocket } from '../lib/socket.js';
 import { useRoomStore } from '../store/roomStore.js';
-import { AlertCircle } from 'lucide-react';
+import { vibrate } from '../lib/haptics.js';
+import { sound } from '../fx/sound.js';
+import { AlertCircle, Check, X } from 'lucide-react';
 import { cleanDraftText } from '@conecta/shared';
 
 interface GameViewProps {
@@ -19,7 +21,7 @@ interface GameViewProps {
 }
 
 export const GameView: React.FC<GameViewProps> = ({ room, myPlayerId }) => {
-  const { currentDrafts, lastReject, clockOffset } = useRoomStore();
+  const { currentDrafts, lastReject, clockOffset, setReject } = useRoomStore();
   const [inputText, setInputText] = useState('');
   const seqRef = useRef(1);
   const draftThrottleTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -29,6 +31,22 @@ export const GameView: React.FC<GameViewProps> = ({ room, myPlayerId }) => {
   const currentPlayer = room.players.find((p) => p.id === game.currentPlayerId);
   const myPlayer = room.players.find((p) => p.id === myPlayerId);
   const isEliminated = myPlayer?.status === 'ELIMINATED';
+
+  // Limpa o campo quando um novo turno começa (evita rascunho antigo reaparecer)
+  const prevTurnIdRef = useRef(game.turnId);
+  useEffect(() => {
+    if (prevTurnIdRef.current !== game.turnId) {
+      prevTurnIdRef.current = game.turnId;
+      setInputText('');
+    }
+  }, [game.turnId]);
+
+  // O aviso de rejeição some sozinho depois de alguns segundos
+  useEffect(() => {
+    if (!lastReject) return;
+    const timeout = setTimeout(() => setReject(null), 3500);
+    return () => clearTimeout(timeout);
+  }, [lastReject, setReject]);
 
   // Atualiza o texto local e transmite o rascunho (RF-012, throttle ~50ms)
   const sendDraft = (text: string) => {
@@ -51,13 +69,20 @@ export const GameView: React.FC<GameViewProps> = ({ room, myPlayerId }) => {
 
   const handleKey = (char: string) => {
     if (inputText.length >= 32) return;
+    sound.pop();
+    vibrate(8);
     sendDraft(inputText + char);
   };
 
-  const handleBackspace = () => sendDraft(inputText.slice(0, -1));
+  const handleBackspace = () => {
+    sound.pop();
+    vibrate(8);
+    sendDraft(inputText.slice(0, -1));
+  };
 
   const handleSubmitWord = () => {
     if (!isMyTurn || isEliminated || !inputText.trim()) return;
+    vibrate(15);
     const socket = getSocket();
     if (socket) {
       socket.emit('word:submit', { word: inputText.trim() }, (res: any) => {
@@ -96,6 +121,14 @@ export const GameView: React.FC<GameViewProps> = ({ room, myPlayerId }) => {
   }, [isMyTurn, isEliminated, inputText]);
 
   const opponentDraft = currentDrafts[game.currentPlayerId]?.text || '';
+
+  // Validação visual ao vivo: o texto começa com o prefixo exigido?
+  const prefixOk =
+    inputText.length === 0
+      ? null
+      : game.requiredPrefixes.some((p) =>
+          inputText.toUpperCase().startsWith(p.toUpperCase())
+        );
 
   return (
     <div className="w-full max-w-md mx-auto flex flex-col flex-1 min-h-0 gap-1.5 pb-1">
@@ -138,7 +171,11 @@ export const GameView: React.FC<GameViewProps> = ({ room, myPlayerId }) => {
         )}
 
         {lastReject && isMyTurn && (
-          <div className="px-3 py-1.5 bg-cartoon-coral text-white rounded-2xl border-2 border-cartoon-dark shadow-cartoon text-xs font-black flex items-center gap-1.5 animate-shake">
+          <div
+            role="status"
+            aria-live="polite"
+            className="px-3 py-1.5 bg-cartoon-coral text-white rounded-2xl border-2 border-cartoon-dark shadow-cartoon text-xs font-black flex items-center gap-1.5 animate-shake"
+          >
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{lastReject.detail}</span>
           </div>
@@ -172,7 +209,15 @@ export const GameView: React.FC<GameViewProps> = ({ room, myPlayerId }) => {
         ) : isMyTurn ? (
           <>
             {/* Campo de palavra (tela, não dispara teclado nativo) */}
-            <div className="min-h-[44px] flex items-center px-3 rounded-2xl border-3 border-cartoon-dark bg-white shadow-cartoon overflow-hidden">
+            <div
+              className={`min-h-[44px] flex items-center px-3 rounded-2xl border-3 shadow-cartoon overflow-hidden transition-colors ${
+                prefixOk === null
+                  ? 'border-cartoon-dark bg-white'
+                  : prefixOk
+                    ? 'border-cartoon-mint bg-green-50'
+                    : 'border-cartoon-coral bg-red-50'
+              }`}
+            >
               {inputText ? (
                 <span className="text-xl font-black tracking-wide text-cartoon-dark break-all">
                   {inputText.toUpperCase()}
@@ -181,6 +226,15 @@ export const GameView: React.FC<GameViewProps> = ({ room, myPlayerId }) => {
                 <span className="text-sm font-bold text-gray-300">Toque nas letras…</span>
               )}
               <span className="inline-block w-2 h-6 bg-cartoon-sky animate-pulse ml-1 shrink-0" />
+              {prefixOk !== null && (
+                <span className="ml-auto shrink-0 pl-2">
+                  {prefixOk ? (
+                    <Check className="w-5 h-5 text-green-600" />
+                  ) : (
+                    <X className="w-5 h-5 text-cartoon-coral" />
+                  )}
+                </span>
+              )}
             </div>
 
             <Keyboard

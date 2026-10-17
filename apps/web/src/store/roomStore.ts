@@ -5,6 +5,16 @@ import type {
   RoomView,
   WordEntry,
 } from '@conecta/shared';
+import { AVATAR_COUNT } from '@conecta/shared';
+
+const AVATAR_STORAGE_KEY = 'conecta_avatar';
+
+function loadInitialAvatar(): number {
+  const saved = localStorage.getItem(AVATAR_STORAGE_KEY);
+  const parsed = saved !== null ? Number(saved) : NaN;
+  if (Number.isInteger(parsed) && parsed >= 0 && parsed < AVATAR_COUNT) return parsed as number;
+  return Math.floor(Math.random() * AVATAR_COUNT);
+}
 
 export interface FloatingReaction {
   id: string;
@@ -18,15 +28,17 @@ interface RoomState {
   playerId: string | null;
   roomCode: string | null;
   nickname: string;
+  avatar: number;
   room: RoomView | null;
   clockOffset: number; // serverTime - clientTime
   currentDrafts: Record<string, { text: string; seq: number }>;
-  lastError: string | null;
   lastReject: { reason: string; detail: string } | null;
   floatingReactions: FloatingReaction[];
+  finalStats: { totalWords: number; longestWord: string } | null;
 
   // Ações
   setNickname: (nickname: string) => void;
+  setAvatar: (avatar: number) => void;
   setSession: (sessionToken: string, playerId: string, roomCode: string, nickname: string) => void;
   setRoom: (room: RoomView) => void;
   updateSettings: (settings: RoomSettings) => void;
@@ -38,7 +50,7 @@ interface RoomState {
   addWordAccepted: (entry: WordEntry, nextPrefixes: string[]) => void;
   setReject: (reject: { reason: string; detail: string } | null) => void;
   clearDrafts: () => void;
-  setError: (error: string | null) => void;
+  setFinalStats: (stats: { totalWords: number; longestWord: string } | null) => void;
   addFloatingReaction: (playerId: string, emoji: string) => void;
   syncClock: (clientTime: number, serverTime: number) => void;
   clearSession: () => void;
@@ -49,16 +61,22 @@ export const useRoomStore = create<RoomState>((set) => ({
   playerId: localStorage.getItem('conecta_player_id'),
   roomCode: localStorage.getItem('conecta_room_code'),
   nickname: localStorage.getItem('conecta_nickname') || '',
+  avatar: loadInitialAvatar(),
   room: null,
   clockOffset: 0,
   currentDrafts: {},
-  lastError: null,
   lastReject: null,
   floatingReactions: [],
+  finalStats: null,
 
   setNickname: (nickname) => {
     localStorage.setItem('conecta_nickname', nickname);
     set({ nickname });
+  },
+
+  setAvatar: (avatar) => {
+    localStorage.setItem(AVATAR_STORAGE_KEY, String(avatar));
+    set({ avatar });
   },
 
   setSession: (sessionToken, playerId, roomCode, nickname) => {
@@ -136,7 +154,7 @@ export const useRoomStore = create<RoomState>((set) => ({
 
   clearDrafts: () => set({ currentDrafts: {}, lastReject: null }),
 
-  setError: (lastError) => set({ lastError }),
+  setFinalStats: (finalStats) => set({ finalStats }),
 
   addFloatingReaction: (playerId, emoji) => {
     const reaction: FloatingReaction = {

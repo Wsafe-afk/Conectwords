@@ -30,6 +30,14 @@ export function useFx() {
       sound.lifeLost();
     };
 
+    const playYourTurn = () => {
+      sound.yourTurn();
+    };
+
+    const playLose = () => {
+      sound.lose();
+    };
+
     const playTick = () => {
       sound.tick();
     };
@@ -69,6 +77,8 @@ export function useFx() {
       playAccepted,
       playRejected,
       playLifeLost,
+      playYourTurn,
+      playLose,
       playTick,
       playWin,
       playPop,

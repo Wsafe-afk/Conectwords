@@ -34,12 +34,37 @@ body {
   }
 }
 
+/* Foco visível para navegação por teclado (acessibilidade) */
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+[role='radio']:focus-visible {
+  outline: 3px solid #38B6FF;
+  outline-offset: 2px;
+}
+
 /* Teclas do teclado próprio: sem seleção, sem callout, sem rolagem ao segurar */
 .kbd-key {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   touch-action: none;
+}
+
+/* Entrada suave de telas, toasts e avisos */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out;
 }
 
 /* Shake de rejeição de palavra */

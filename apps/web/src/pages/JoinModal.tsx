@@ -4,6 +4,7 @@ import { Button } from '../components/Button.js';
 import { Card } from '../components/Card.js';
 import { useRoomStore } from '../store/roomStore.js';
 import { apiRequest } from '../lib/api.js';
+import { toast } from '../lib/toast.js';
 import { X, ArrowRight } from 'lucide-react';
 import { ROOM_CODE_LENGTH } from '@conecta/shared';
 
@@ -14,7 +15,7 @@ interface JoinModalProps {
 
 export const JoinModal: React.FC<JoinModalProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
-  const { nickname, setSession, setError } = useRoomStore();
+  const { nickname, avatar, setSession } = useRoomStore();
   const [codeDigits, setCodeDigits] = useState<string[]>(Array(ROOM_CODE_LENGTH).fill(''));
   const [isJoining, setIsJoining] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -71,12 +72,12 @@ export const JoinModal: React.FC<JoinModalProps> = ({ isOpen, onClose }) => {
     e.preventDefault();
     const fullCode = codeDigits.join('').trim().toUpperCase();
     if (fullCode.length !== ROOM_CODE_LENGTH) {
-      alert(`O código da sala deve ter ${ROOM_CODE_LENGTH} caracteres.`);
+      toast.error(`O código da sala deve ter ${ROOM_CODE_LENGTH} caracteres.`);
       return;
     }
 
     if (!nickname) {
-      alert('Apelido não configurado.');
+      toast.error('Apelido não configurado. Volte e digite seu apelido primeiro.');
       return;
     }
 
@@ -84,15 +85,14 @@ export const JoinModal: React.FC<JoinModalProps> = ({ isOpen, onClose }) => {
     try {
       const data = await apiRequest(`/api/rooms/${fullCode}/join`, {
         method: 'POST',
-        body: JSON.stringify({ nickname }),
+        body: JSON.stringify({ nickname, avatar }),
       });
 
       setSession(data.sessionToken, data.playerId, data.code, data.room.players.find((p: any) => p.id === data.playerId)?.nickname || nickname);
       onClose();
       navigate(`/room/${data.code}`);
     } catch (err: any) {
-      alert(err.message || 'Erro ao entrar na sala.');
-      setError(err.message);
+      toast.error(err.message || 'Erro ao entrar na sala.');
     } finally {
       setIsJoining(false);
     }

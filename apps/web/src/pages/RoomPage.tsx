@@ -1,13 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useRoomStore } from '../store/roomStore.js';
-import { initSocket, disconnectSocket } from '../lib/socket.js';
+import { initSocket, disconnectSocket, getSocket } from '../lib/socket.js';
 import { useFx } from '../fx/useFx.js';
+import { vibrate } from '../lib/haptics.js';
 import { Lobby } from './Lobby.js';
 import { ChoosingLetter } from './ChoosingLetter.js';
 import { GameView } from './GameView.js';
 import { FinishedView } from './FinishedView.js';
-import { WifiOff, Home } from 'lucide-react';
+import { SoundToggle } from '../components/SoundToggle.js';
+import { WifiOff, Home, LogOut, Gamepad2 } from 'lucide-react';
 
 export const RoomPage: React.FC = () => {
   const { code } = useParams<{ code: string }>();
@@ -19,9 +21,19 @@ export const RoomPage: React.FC = () => {
     room,
   } = useRoomStore();
 
-  const { playAccepted, playRejected, playLifeLost } = useFx();
+  const { playAccepted, playRejected, playLifeLost, playYourTurn } = useFx();
   const [connecting, setConnecting] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [leaveConfirm, setLeaveConfirm] = useState(false);
+
+  // Título da aba reflete a sala atual
+  useEffect(() => {
+    document.title = room ? `Sala ${room.code} · Conecta Palavras` : 'Conecta Palavras';
+    return () => {
+      document.title = 'Conecta Palavras — Jogo Multiplayer de Palavras';
+    };
+  }, [room?.code]);
 
   // Refs para as ações do store — sempre atualizadas, nunca causam re-run do effect
   const storeRef = useRef(useRoomStore.getState());
@@ -31,10 +43,10 @@ export const RoomPage: React.FC = () => {
     });
   }, []);
 
-  const fxRef = useRef({ playAccepted, playRejected, playLifeLost });
+  const fxRef = useRef({ playAccepted, playRejected, playLifeLost, playYourTurn });
   useEffect(() => {
-    fxRef.current = { playAccepted, playRejected, playLifeLost };
-  }, [playAccepted, playRejected, playLifeLost]);
+    fxRef.current = { playAccepted, playRejected, playLifeLost, playYourTurn };
+  }, [playAccepted, playRejected, playLifeLost, playYourTurn]);
 
   useEffect(() => {
     const targetCode = code?.toUpperCase();
@@ -51,8 +63,16 @@ export const RoomPage: React.FC = () => {
     socket.on('connect', () => {
       setConnecting(false);
       setErrorMsg(null);
+      setReconnecting(false);
       // Sincroniza relógio
       socket.emit('time:sync', { clientTime: Date.now() });
+    });
+
+    socket.on('disconnect', (reason) => {
+      // Não mostra o aviso quando fomos nós que desconectamos (sair da sala)
+      if (reason !== 'io client disconnect') {
+        setReconnecting(true);
+      }
     });
 
     socket.on('connect_error', (err) => {
@@ -67,6 +87,7 @@ export const RoomPage: React.FC = () => {
     socket.on('room:state', (roomView) => {
       storeRef.current.setRoom(roomView);
       storeRef.current.clearDrafts();
+      if (roomView.phase !== 'FINISHED') storeRef.current.setFinalStats(null);
     });
 
     socket.on('player:joined', (data) => {
@@ -98,6 +119,7 @@ export const RoomPage: React.FC = () => {
     socket.on('game:started', (data) => {
       const current = useRoomStore.getState().room;
       if (!current) return;
+      storeRef.current.setFinalStats(null);
       storeRef.current.setRoom({
         ...current,
         phase: 'CHOOSING_LETTER',
@@ -143,6 +165,14 @@ export const RoomPage: React.FC = () => {
           },
         });
       }
+      // Novo turno: limpa rascunhos antigos e o aviso de rejeição
+      storeRef.current.clearDrafts();
+
+      // Avisa quem vai jogar (som + vibração)
+      if (data.playerId === snap.playerId) {
+        fxRef.current.playYourTurn();
+        vibrate([60, 40, 60]);
+      }
     });
 
     socket.on('draft:changed', (data) => {
@@ -156,11 +186,13 @@ export const RoomPage: React.FC = () => {
 
     socket.on('word:rejected', (data) => {
       fxRef.current.playRejected();
+      vibrate([40, 60, 40]);
       storeRef.current.setReject({ reason: data.reason, detail: data.detail });
     });
 
     socket.on('turn:timeout', (data) => {
       fxRef.current.playLifeLost();
+      if (data.playerId === snap.playerId) vibrate(120);
       const current = useRoomStore.getState().room;
       if (current) {
         const players = current.players.map((p) =>
@@ -192,6 +224,7 @@ export const RoomPage: React.FC = () => {
           },
         });
       }
+      storeRef.current.setFinalStats(data.stats || null);
     });
 
     socket.on('reaction:received', (data) => {
@@ -203,6 +236,36 @@ export const RoomPage: React.FC = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]); // Apenas 'code' como dependência — o socket só deve ser criado/destruído quando o código da sala muda
+
+  const finishLeave = () => {
+    useRoomStore.getState().clearSession();
+    navigate('/');
+  };
+
+  // Confirmação em dois toques para não sair por engano
+  const handleLeave = () => {
+    if (!leaveConfirm) {
+      setLeaveConfirm(true);
+      setTimeout(() => setLeaveConfirm(false), 3000);
+      return;
+    }
+    setLeaveConfirm(false);
+
+    const socket = getSocket();
+    if (socket && socket.connected) {
+      let done = false;
+      const finishOnce = () => {
+        if (done) return;
+        done = true;
+        finishLeave();
+      };
+      socket.emit('room:leave', {}, finishOnce);
+      // Fallback: não deixa o jogador preso se o servidor não responder
+      setTimeout(finishOnce, 1200);
+    } else {
+      finishLeave();
+    }
+  };
 
   if (errorMsg) {
     return (
@@ -235,6 +298,41 @@ export const RoomPage: React.FC = () => {
 
   return (
     <div className="min-h-[var(--app-height)] flex flex-col p-2 sm:p-5 max-w-lg mx-auto">
+      {/* Aviso de reconexão */}
+      {reconnecting && (
+        <div className="fixed top-0 inset-x-0 z-[90] flex justify-center px-4 pt-2 pointer-events-none">
+          <div className="flex items-center gap-2 px-4 py-2 bg-cartoon-coral text-white border-3 border-cartoon-dark rounded-2xl shadow-cartoon font-black text-sm animate-fade-in">
+            <WifiOff className="w-4 h-4 animate-pulse" />
+            <span>Reconectando…</span>
+          </div>
+        </div>
+      )}
+
+      {/* Barra superior: código da sala, som e sair */}
+      <div className="shrink-0 flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/80 backdrop-blur rounded-xl border-2 border-cartoon-dark/25 text-xs font-black text-cartoon-dark/70 select-none">
+          <Gamepad2 className="w-3.5 h-3.5" />
+          <span className="tracking-wider">{room.code}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <SoundToggle size="sm" />
+          <button
+            type="button"
+            onClick={handleLeave}
+            aria-label={leaveConfirm ? 'Confirmar saída da sala' : 'Sair da sala'}
+            title="Sair da sala"
+            className={`flex items-center justify-center gap-1 h-9 px-2 rounded-xl border-2 border-cartoon-dark shadow-cartoon-sm active:translate-y-0.5 active:shadow-none transition-all cursor-pointer ${
+              leaveConfirm
+                ? 'bg-cartoon-coral text-white text-xs font-black animate-pulse'
+                : 'bg-white text-cartoon-dark hover:bg-gray-50'
+            }`}
+          >
+            <LogOut className="w-4 h-4" />
+            {leaveConfirm && <span>Sair?</span>}
+          </button>
+        </div>
+      </div>
+
       {room.phase === 'LOBBY' && <Lobby room={room} myPlayerId={playerId!} />}
       {room.phase === 'CHOOSING_LETTER' && <ChoosingLetter room={room} myPlayerId={playerId!} />}
       {room.phase === 'PLAYING' && <GameView room={room} myPlayerId={playerId!} />}

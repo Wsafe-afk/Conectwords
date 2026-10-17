@@ -1,8 +1,8 @@
 import React from 'react';
 import type { Player } from '@conecta/shared';
+import { AVATAR_EMOJIS } from '@conecta/shared';
 import { Crown, WifiOff } from 'lucide-react';
 
-const AVATAR_EMOJIS = ['🐱', '🐶', '🦊', '🐻', '🐼', '🦁', '🐸', '🐵'];
 const AVATAR_BG_COLORS = [
   'bg-cartoon-yellow',
   'bg-cartoon-sky',
@@ -74,7 +74,7 @@ export const Avatar: React.FC<AvatarProps> = ({
           {player.nickname}
         </span>
         {isMe && (
-          <span className="text-[10px] font-black bg-cartoon-yellow px-1 py-0.2 rounded border border-black">
+          <span className="text-[10px] font-black bg-cartoon-yellow px-1 py-0.5 rounded border border-black">
             Você
           </span>
         )}
