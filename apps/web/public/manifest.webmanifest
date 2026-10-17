@@ -1,0 +1,25 @@
+{
+  "name": "Conecta Palavras",
+  "short_name": "Conecta",
+  "description": "Jogo multiplayer em tempo real de encadeamento de palavras. Crie uma sala, compartilhe o código e jogue com seus amigos.",
+  "lang": "pt-BR",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFF9E6",
+  "theme_color": "#FFDE59",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
