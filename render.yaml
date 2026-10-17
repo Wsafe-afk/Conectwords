@@ -16,7 +16,6 @@ services:
   - type: web
     name: conecta-web
     runtime: static
-    plan: free
     buildCommand: pnpm install && pnpm --filter @conecta/shared build && pnpm --filter @conecta/web build
     staticPublishPath: apps/web/dist
     routes:
@@ -28,4 +27,4 @@ services:
         fromService:
           type: web
           name: conecta-server
-          property: host
+          property: url
