@@ -1,6 +1,7 @@
 import type { Server, Socket } from 'socket.io';
 import {
   ChooseLetterSchema,
+  DEFAULT_RECONNECT_GRACE_MS,
   DraftUpdateSchema,
   KickPlayerSchema,
   ReactionSendSchema,
@@ -25,6 +26,37 @@ import { dictionaryService } from '../services/dictionary.js';
 interface SocketData {
   playerId: string;
   roomCode: string;
+}
+
+// Tempo de graça para o jogador reconectar antes de ser removido da sala (RF-010)
+const RECONNECT_GRACE_MS = Number(process.env.RECONNECT_GRACE_MS) || DEFAULT_RECONNECT_GRACE_MS;
+
+// Timers de graça por jogador: removem de fato quem não voltou a tempo
+const graceTimers = new Map<string, NodeJS.Timeout>();
+
+function graceKey(roomCode: string, playerId: string): string {
+  return `${roomCode.toUpperCase()}:${playerId}`;
+}
+
+function clearGraceTimer(roomCode: string, playerId: string): void {
+  const key = graceKey(roomCode, playerId);
+  const timer = graceTimers.get(key);
+  if (timer) {
+    clearTimeout(timer);
+    graceTimers.delete(key);
+  }
+}
+
+function scheduleGraceTimer(io: Server, roomCode: string, playerId: string): void {
+  clearGraceTimer(roomCode, playerId);
+  const key = graceKey(roomCode, playerId);
+  const timer = setTimeout(() => {
+    graceTimers.delete(key);
+    finalizeDisconnect(io, roomCode, playerId).catch(() => {
+      // silencioso: melhor esforço
+    });
+  }, RECONNECT_GRACE_MS);
+  graceTimers.set(key, timer);
 }
 
 export function setupWebSocket(io: Server) {
@@ -71,6 +103,7 @@ export function setupWebSocket(io: Server) {
     if (player) {
       player.connected = true;
       player.disconnectedAt = null;
+      clearGraceTimer(roomCode, playerId); // jogador voltou a tempo
       room.version++;
       await roomStore.save(room);
 
@@ -498,6 +531,88 @@ async function handlePlayerDisconnectOrLeave(
       room.version++;
       await roomStore.save(room);
       io.to(roomChannel).emit('player:connection', { playerId, connected: false });
+
+      // Se o host caiu no lobby, passa a liderança ao jogador conectado mais antigo
+      // imediatamente, para a sala não ficar presa esperando ele voltar (CA-013).
+      if (room.phase === 'LOBBY' && room.hostId === playerId && !voluntaryLeave) {
+        const oldestConnected = room.players
+          .filter((p) => p.id !== playerId && p.connected)
+          .sort((a, b) => a.joinedAt - b.joinedAt)[0];
+        if (oldestConnected) {
+          room.hostId = oldestConnected.id;
+          room.version++;
+          await roomStore.save(room);
+          io.to(roomChannel).emit('host:changed', { hostId: oldestConnected.id });
+        }
+      }
+
+      // Agenda a remoção definitiva caso o jogador não reconecte a tempo (RF-007, RF-010)
+      scheduleGraceTimer(io, roomCode, playerId);
     }
   }
+}
+
+/**
+ * Remove de fato um jogador que não reconectou dentro do período de graça.
+ * Reatribui host, ajusta o jogo em andamento e destrói salas vazias.
+ */
+async function finalizeDisconnect(io: Server, roomCode: string, playerId: string): Promise<void> {
+  const room = await roomStore.get(roomCode);
+  if (!room) return;
+
+  const player = room.players.find((p) => p.id === playerId);
+  // Se reconectou a tempo ou já saiu, não faz nada
+  if (!player || player.connected) return;
+
+  const roomChannel = `room:${roomCode.toUpperCase()}`;
+
+  room.players = room.players.filter((p) => p.id !== playerId);
+  room.turnOrder = room.turnOrder.filter((id) => id !== playerId);
+  room.version++;
+
+  // Sala vazia é destruída (RF-007)
+  if (room.players.length === 0) {
+    await roomStore.delete(roomCode);
+    return;
+  }
+
+  // Se era o host, passa a liderança ao jogador mais antigo restante
+  if (room.hostId === playerId) {
+    const newHost = reassignHostIfHostLeft(room);
+    if (newHost) io.to(roomChannel).emit('host:changed', { hostId: newHost });
+  }
+
+  io.to(roomChannel).emit('player:left', { playerId, reason: 'timeout' });
+
+  // Ajusta uma partida em andamento
+  if (room.game && (room.phase === 'PLAYING' || room.phase === 'CHOOSING_LETTER')) {
+    const activePlayers = room.players.filter((p) => p.status === 'ACTIVE');
+
+    if (activePlayers.length <= 1) {
+      room.phase = 'FINISHED';
+      room.game.winnerId = activePlayers[0]?.id || null;
+      room.version++;
+      await roomStore.save(room);
+      io.to(roomChannel).emit('game:finished', {
+        winnerId: room.game.winnerId,
+        stats: {
+          totalWords: room.game.words.length,
+          longestWord: room.game.words.reduce(
+            (max, cur) => (cur.word.length > max.length ? cur.word : max),
+            ''
+          ),
+        },
+      });
+      return;
+    }
+
+    // Se o jogador removido era o da vez, passa a vez para o próximo ativo
+    const currentStillPresent = room.players.some((p) => p.id === room.game!.currentPlayerId);
+    if (room.phase === 'PLAYING' && !currentStillPresent) {
+      await advanceTurn(io, room);
+      return;
+    }
+  }
+
+  await roomStore.save(room);
 }

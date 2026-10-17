@@ -3,6 +3,7 @@ import type { RoomView } from '@conecta/shared';
 import { Card } from '../components/Card.js';
 import { Timer } from '../components/Timer.js';
 import { getSocket } from '../lib/socket.js';
+import { useRoomStore } from '../store/roomStore.js';
 import { Sparkles } from 'lucide-react';
 import { sound } from '../fx/sound.js';
 
@@ -16,6 +17,7 @@ const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 export const ChoosingLetter: React.FC<ChoosingLetterProps> = ({ room, myPlayerId }) => {
   const isChooser = room.game?.chooserId === myPlayerId;
   const chooserName = room.players.find((p) => p.id === room.game?.chooserId)?.nickname || 'Jogador';
+  const { clockOffset } = useRoomStore();
   const socket = getSocket();
 
   const handlePickLetter = (letter: string) => {
@@ -31,7 +33,7 @@ export const ChoosingLetter: React.FC<ChoosingLetterProps> = ({ room, myPlayerId
         <div className="flex justify-center">
           <Timer
             deadlineAt={room.game.deadlineAt}
-            clockOffset={0}
+            clockOffset={clockOffset}
             totalSeconds={15}
           />
         </div>

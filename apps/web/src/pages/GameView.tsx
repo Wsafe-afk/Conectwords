@@ -89,9 +89,9 @@ export const GameView: React.FC<GameViewProps> = ({ room, myPlayerId }) => {
     : currentDrafts[game.currentPlayerId]?.text || '';
 
   return (
-    <div className="w-full max-w-md mx-auto flex flex-col min-h-[calc(100dvh-3rem)] justify-between pb-3">
+    <div className="w-full max-w-md mx-auto flex flex-col flex-1 min-h-0 gap-2 pb-1">
       {/* 1. TOPO: Lista de Jogadores e Vidas */}
-      <div className="bg-white/90 backdrop-blur rounded-3xl border-3 border-cartoon-dark p-3 shadow-cartoon">
+      <div className="shrink-0 bg-white/90 backdrop-blur rounded-3xl border-3 border-cartoon-dark p-2 sm:p-3 shadow-cartoon">
         <div className="flex items-center justify-around overflow-x-auto gap-3 py-1">
           {room.players.map((p) => {
             const isTurn = p.id === game.currentPlayerId;
@@ -122,24 +122,8 @@ export const GameView: React.FC<GameViewProps> = ({ room, myPlayerId }) => {
         </div>
       </div>
 
-      {/* 2. CENTRO: Cronômetro, Chips de Prefixo e Balão de Digitação */}
-      <div className="flex flex-col items-center my-auto py-2">
-        {/* Cronômetro */}
-        <div className="mb-2">
-          <Timer
-            deadlineAt={game.deadlineAt}
-            clockOffset={clockOffset}
-            totalSeconds={room.settings.turnSeconds}
-          />
-        </div>
-
-        {/* Chips de prefixo exigido tocáveis (RF-015) */}
-        <PrefixChips
-          requiredPrefixes={game.requiredPrefixes}
-          onSelectPrefix={handleSelectPrefix}
-          disabled={!isMyTurn || isEliminated}
-        />
-
+      {/* 2. CENTRO: Balão de digitação ao vivo + histórico (rolável se faltar espaço) */}
+      <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-1.5 overflow-y-auto py-1">
         {/* Balão com a digitação em tempo real */}
         <SpeechBubble
           text={activeDraftText}
@@ -159,8 +143,24 @@ export const GameView: React.FC<GameViewProps> = ({ room, myPlayerId }) => {
         <WordHistory words={game.words} players={room.players} />
       </div>
 
-      {/* 3. BASE: Campo de Digitação fixo acima do teclado virtual */}
-      <div className="space-y-2 mt-auto">
+      {/* 3. BASE: Cronômetro + prefixo + campo de digitação sempre visíveis acima do teclado */}
+      <div className="shrink-0 space-y-2">
+        {/* Cronômetro */}
+        <div className="flex justify-center">
+          <Timer
+            deadlineAt={game.deadlineAt}
+            clockOffset={clockOffset}
+            totalSeconds={room.settings.turnSeconds}
+          />
+        </div>
+
+        {/* Chips de prefixo exigido tocáveis (RF-015) */}
+        <PrefixChips
+          requiredPrefixes={game.requiredPrefixes}
+          onSelectPrefix={handleSelectPrefix}
+          disabled={!isMyTurn || isEliminated}
+        />
+
         <ReactionsBar />
 
         {isEliminated ? (

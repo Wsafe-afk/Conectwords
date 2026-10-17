@@ -66,6 +66,7 @@ export const RoomPage: React.FC = () => {
 
     socket.on('room:state', (roomView) => {
       storeRef.current.setRoom(roomView);
+      storeRef.current.clearDrafts();
     });
 
     socket.on('player:joined', (data) => {
@@ -73,6 +74,12 @@ export const RoomPage: React.FC = () => {
     });
 
     socket.on('player:left', (data) => {
+      // Fui eu que saí/foi expulso: volta para a tela inicial
+      if (data.playerId === snap.playerId) {
+        useRoomStore.getState().clearSession();
+        navigate('/');
+        return;
+      }
       storeRef.current.removePlayer(data.playerId);
     });
 
@@ -227,7 +234,7 @@ export const RoomPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col p-3 sm:p-5 max-w-lg mx-auto">
+    <div className="min-h-[var(--app-height)] flex flex-col p-2 sm:p-5 max-w-lg mx-auto">
       {room.phase === 'LOBBY' && <Lobby room={room} myPlayerId={playerId!} />}
       {room.phase === 'CHOOSING_LETTER' && <ChoosingLetter room={room} myPlayerId={playerId!} />}
       {room.phase === 'PLAYING' && <GameView room={room} myPlayerId={playerId!} />}

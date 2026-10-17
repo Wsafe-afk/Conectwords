@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button.js';
 import { Card } from '../components/Card.js';
@@ -19,18 +19,46 @@ export const JoinModal: React.FC<JoinModalProps> = ({ isOpen, onClose }) => {
   const [isJoining, setIsJoining] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // Sempre limpa o formulário ao abrir o modal (evita código antigo/parcial)
+  useEffect(() => {
+    if (isOpen) {
+      setCodeDigits(Array(ROOM_CODE_LENGTH).fill(''));
+      setIsJoining(false);
+      inputRefs.current[0]?.focus();
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleDigitChange = (index: number, value: string) => {
-    const cleanChar = value.slice(-1).toUpperCase();
+    const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
     const newDigits = [...codeDigits];
-    newDigits[index] = cleanChar;
-    setCodeDigits(newDigits);
-
-    // Avança para o próximo campo automaticamente
-    if (cleanChar && index < ROOM_CODE_LENGTH - 1) {
-      inputRefs.current[index + 1]?.focus();
+    if (!clean) {
+      newDigits[index] = '';
+      setCodeDigits(newDigits);
+      return;
     }
+    // Suporta autofill/colagem que insira vários caracteres de uma vez
+    for (let i = 0; i < clean.length && index + i < ROOM_CODE_LENGTH; i++) {
+      newDigits[index + i] = clean[i];
+    }
+    setCodeDigits(newDigits);
+    const nextIndex = Math.min(index + clean.length, ROOM_CODE_LENGTH - 1);
+    inputRefs.current[nextIndex]?.focus();
+  };
+
+  // Colar o código completo (ex.: "K7M2P") em qualquer caixinha
+  const handlePaste = (index: number, e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData('text').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!pasted) return;
+    e.preventDefault();
+    const newDigits = [...codeDigits];
+    for (let i = 0; i < pasted.length && index + i < ROOM_CODE_LENGTH; i++) {
+      newDigits[index + i] = pasted[i];
+    }
+    setCodeDigits(newDigits);
+    const nextIndex = Math.min(index + pasted.length, ROOM_CODE_LENGTH - 1);
+    inputRefs.current[nextIndex]?.focus();
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -98,6 +126,7 @@ export const JoinModal: React.FC<JoinModalProps> = ({ isOpen, onClose }) => {
                 value={digit}
                 maxLength={1}
                 onChange={(e) => handleDigitChange(idx, e.target.value)}
+                onPaste={(e) => handlePaste(idx, e)}
                 onKeyDown={(e) => handleKeyDown(idx, e)}
                 className="w-12 h-14 text-center text-2xl font-black uppercase rounded-2xl border-3 border-cartoon-dark shadow-cartoon outline-none focus:border-cartoon-sky focus:ring-2 focus:ring-cartoon-sky/20 transition-all bg-white"
                 autoFocus={idx === 0}

@@ -37,6 +37,7 @@ interface RoomState {
   setDraft: (playerId: string, text: string, seq: number) => void;
   addWordAccepted: (entry: WordEntry, nextPrefixes: string[]) => void;
   setReject: (reject: { reason: string; detail: string } | null) => void;
+  clearDrafts: () => void;
   setError: (error: string | null) => void;
   addFloatingReaction: (playerId: string, emoji: string) => void;
   syncClock: (clientTime: number, serverTime: number) => void;
@@ -132,6 +133,8 @@ export const useRoomStore = create<RoomState>((set) => ({
     }),
 
   setReject: (lastReject) => set({ lastReject }),
+
+  clearDrafts: () => set({ currentDrafts: {}, lastReject: null }),
 
   setError: (lastError) => set({ lastError }),
 
